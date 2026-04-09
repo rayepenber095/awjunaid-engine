@@ -52,7 +52,7 @@ deps_version_from_headers() {
         if [[ -n "$value" ]]; then
             echo "ℹ️  Header '$header': $value"
 
-            if echo "$value" | grep -qiE "apache/2\.[01]\.|nginx/1\.(0|[1-9]\.[0-9])\.|php/[45]\.|openssl/1\.0\.[01]"; then
+            if echo "$value" | grep -qiE "apache/2\.[01]\.|nginx/1\.[0-9]\.[0-9]+\b|php/[45]\.|openssl/1\.0\.[01]"; then
                 echo "⚠️  [HIGH] Outdated/vulnerable version in '$header': $value"
                 echo "    CWE-1104 | CVSS: 7.5 (High)"
                 echo "    Remediation: Update to the latest stable version"
@@ -223,13 +223,19 @@ deps_ssl_tls_check() {
     if [[ -n "$cert_expiry" ]]; then
         echo "ℹ️  Certificate expiry: $cert_expiry"
         local expiry_epoch
-        expiry_epoch=$(date -d "$cert_expiry" +%s 2>/dev/null || date -j -f "%b %d %H:%M:%S %Y %Z" "$cert_expiry" +%s 2>/dev/null || echo "0")
-        local now_epoch
-        now_epoch=$(date +%s)
-        local days_left=$(( (expiry_epoch - now_epoch) / 86400 ))
-        if [[ $days_left -lt 30 ]]; then
-            echo "⚠️  [MEDIUM] Certificate expires in $days_left days"
-            ((DEPS_VULN_COUNT++))
+        expiry_epoch=$(date -d "$cert_expiry" +%s 2>/dev/null \
+            || date -j -f "%b %d %H:%M:%S %Y %Z" "$cert_expiry" +%s 2>/dev/null \
+            || true)
+        if [[ -z "$expiry_epoch" ]]; then
+            log_debug "Could not parse certificate expiry date: $cert_expiry"
+        else
+            local now_epoch
+            now_epoch=$(date +%s)
+            local days_left=$(( (expiry_epoch - now_epoch) / 86400 ))
+            if [[ $days_left -lt 30 ]]; then
+                echo "⚠️  [MEDIUM] Certificate expires in $days_left days"
+                ((DEPS_VULN_COUNT++))
+            fi
         fi
     fi
     echo ""

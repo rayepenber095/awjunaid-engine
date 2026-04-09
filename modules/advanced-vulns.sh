@@ -156,6 +156,9 @@ adv_rate_limiting() {
     local status_200_count=0
     local total_requests=10
 
+    # NOTE: This test sends multiple login requests with dummy credentials.
+    # This may trigger security alerts or temporary account lockouts on the target.
+    # Use only on systems you are authorized to test.
     echo "Sending $total_requests rapid login requests to check rate limiting..."
     for i in $(seq 1 $total_requests); do
         local status

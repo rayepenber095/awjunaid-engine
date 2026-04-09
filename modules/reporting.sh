@@ -28,7 +28,7 @@ _collect_findings() {
         return
     fi
 
-    grep -E "^⚠️|^\[CRITICAL\]|\[HIGH\]|\[MEDIUM\]|\[LOW\]" "$scan_file" \
+    grep -E "^(⚠️|\[(CRITICAL|HIGH|MEDIUM|LOW)\])" "$scan_file" \
         > "$findings_file" 2>/dev/null || true
 }
 

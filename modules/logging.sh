@@ -184,7 +184,7 @@ logging_error_verbosity() {
             -H "User-Agent: AWJUNAID/2.0" 2>/dev/null || true)
 
         # Check for stack traces / internal paths
-        if echo "$response" | grep -qiE "at .*\.(java|js|py|rb|php):[0-9]+|Traceback \(most recent|Fatal error:|stack trace:|Exception in thread|com\.[a-z]+\.[a-z]+\." ; then
+        if echo "$response" | grep -qiE "at .*\.(java|js|py|rb|php):[0-9]+|Traceback \(most recent|Fatal error:|stack trace:|Exception in thread|com\.[a-zA-Z]+\.[a-zA-Z]+\." ; then
             echo "⚠️  [MEDIUM] Verbose error / stack trace leaked at: $path"
             echo "    CWE-209 | CVSS: 5.3 (Medium)"
             echo "    Remediation: Configure production error handling to suppress stack traces"
@@ -215,16 +215,18 @@ logging_sensitive_data_in_responses() {
         "https://$domain/api/v1/settings"
     )
 
-    # Patterns: credit cards, SSN, passwords, tokens, keys
+    # Patterns: credit cards (Visa/MC/Amex/Discover), SSN, passwords, tokens, keys
+    # Credit card: requires known BIN prefix (4=Visa, 5=MC, 3=Amex, 6=Discover) and
+    #              strict digit grouping to reduce false positives
     local sensitive_patterns=(
-        "[0-9]{4}[[:space:]-]?[0-9]{4}[[:space:]-]?[0-9]{4}[[:space:]-]?[0-9]{4}"  # Credit card
-        "[0-9]{3}-[0-9]{2}-[0-9]{4}"                                                  # SSN
-        '"password"\s*:\s*"[^"]+'                                                      # password field
-        '"token"\s*:\s*"[^"]+'                                                         # token field
-        '"api_key"\s*:\s*"[^"]+'                                                       # api_key
-        '"secret"\s*:\s*"[^"]+'                                                        # secret
-        'Bearer [A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+'                  # JWT
-        'AWS_ACCESS_KEY_ID|AKIA[A-Z0-9]{16}'                                          # AWS key
+        "\b(4[0-9]{3}|5[1-5][0-9]{2}|3[47][0-9]{2}|6(?:011|5[0-9]{2}))[[:space:]-]?[0-9]{4}[[:space:]-]?[0-9]{4}[[:space:]-]?[0-9]{4}\b"  # Credit card
+        "\b[0-9]{3}-[0-9]{2}-[0-9]{4}\b"                                                       # SSN
+        '"password"\s*:\s*"[^"]+'                                                                # password field
+        '"token"\s*:\s*"[^"]+'                                                                   # token field
+        '"api_key"\s*:\s*"[^"]+'                                                                 # api_key
+        '"secret"\s*:\s*"[^"]+'                                                                  # secret
+        'Bearer [A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+'                            # JWT
+        'AWS_ACCESS_KEY_ID|AKIA[A-Z0-9]{16}'                                                    # AWS key
     )
 
     for url in "${endpoints[@]}"; do
