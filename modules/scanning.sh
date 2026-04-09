@@ -2,6 +2,11 @@
 
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/logger.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/utils.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/xxe.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/deserialization.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/dependencies.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/logging.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/advanced-vulns.sh"
 
 # Vulnerability counters
 declare -A VULNS
@@ -15,9 +20,9 @@ scanning_phase() {
     local domain=$1
     local output_dir=$2
     local scan_mode=$3
-    
+
     log_info "========== SCANNING PHASE STARTED =========="
-    
+
     local scan_file="${output_dir}/03_scanning.txt"
     {
         echo "=== VULNERABILITY SCANNING REPORT ==="
@@ -26,14 +31,21 @@ scanning_phase() {
         echo "Date: $(date)"
         echo ""
     } > "$scan_file"
-    
-    # OWASP scanning
+
+    # Original OWASP scanning
     scan_injection "$domain" >> "$scan_file"
     scan_xss "$domain" >> "$scan_file"
     scan_broken_auth "$domain" >> "$scan_file"
     scan_idor "$domain" >> "$scan_file"
     scan_misc "$domain" >> "$scan_file"
-    
+
+    # Extended OWASP Top 10 scanning
+    scan_xxe "$domain" >> "$scan_file"
+    scan_deserialization "$domain" >> "$scan_file"
+    scan_dependencies "$domain" >> "$scan_file"
+    scan_logging "$domain" >> "$scan_file"
+    scan_advanced_vulns "$domain" >> "$scan_file"
+
     log_success "Scanning complete! Results in: $scan_file"
 }
 
